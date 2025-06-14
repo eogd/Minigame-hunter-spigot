@@ -28,6 +28,7 @@ import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BannerMeta;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -224,6 +225,8 @@ public class HunterPlugin extends JavaPlugin implements Listener {
                         .map(line -> ChatColor.translateAlternateColorCodes('&', line))
                         .collect(Collectors.toList()));
             }
+            weaponMeta.setUnbreakable(true);
+            weaponMeta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
             hunterWeapon.setItemMeta(weaponMeta);
         }
         cannotDropWeaponMessage = ChatColor.translateAlternateColorCodes('&', getPluginConfig().getString("hunter_settings.cannot_drop_weapon_message", "&c作为猎人，你无法丢弃你的狩猎工具！"));
@@ -532,7 +535,14 @@ public class HunterPlugin extends JavaPlugin implements Listener {
                 hunter.removePotionEffect(PotionEffectType.SLOWNESS);
                 hunter.removePotionEffect(PotionEffectType.JUMP_BOOST);
                 if (hunterWeapon != null) {
-                    hunter.getInventory().addItem(hunterWeapon.clone());
+                    ItemStack currentHunterWeapon = hunterWeapon.clone();
+                    ItemMeta meta = currentHunterWeapon.getItemMeta();
+                    if (meta != null) {
+                        meta.setUnbreakable(true);
+                        meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+                        currentHunterWeapon.setItemMeta(meta);
+                    }
+                    hunter.getInventory().addItem(currentHunterWeapon);
                 }
                 hunter.sendMessage(ChatColor.GREEN + "你可以自由行动了！开始追捕！");
             }
@@ -553,13 +563,13 @@ public class HunterPlugin extends JavaPlugin implements Listener {
             if (passivePointsPerSecond > 0) {
                 for (UUID hunterUUID : getHunters()) {
                     Player hunter = Bukkit.getPlayer(hunterUUID);
-                    if (hunter != null && hunter.isOnline() && hunter.getGameMode() == GameMode.SURVIVAL) { // Only active hunters
+                    if (hunter != null && hunter.isOnline() && hunter.getGameMode() == GameMode.SURVIVAL) {
                         addPoints(hunterUUID, passivePointsPerSecond);
                     }
                 }
                 for (UUID runnerUUID : getRunners()) {
                     Player runner = Bukkit.getPlayer(runnerUUID);
-                    if (runner != null && runner.isOnline() && runner.getGameMode() == GameMode.SURVIVAL) { // Only active runners
+                    if (runner != null && runner.isOnline() && runner.getGameMode() == GameMode.SURVIVAL) {
                         addPoints(runnerUUID, passivePointsPerSecond);
                     }
                 }
@@ -634,7 +644,7 @@ public class HunterPlugin extends JavaPlugin implements Listener {
 
         int rank = 1;
         for (Map.Entry<UUID, Integer> entry : sortedPlayers) {
-            if (rank > rankingDisplayCount && rankingDisplayCount > 0) break; // rankingDisplayCount > 0 means display all if 0 or less
+            if (rank > rankingDisplayCount && rankingDisplayCount > 0) break;
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(entry.getKey());
             String playerName = offlinePlayer.getName() != null ? offlinePlayer.getName() : "未知玩家 (" + entry.getKey().toString().substring(0,6) + ")";
             String rankMessage = rankingFormat
@@ -938,8 +948,15 @@ public class HunterPlugin extends JavaPlugin implements Listener {
                     if(currentPhase == GamePhase.PREPARATION) {
                         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, preparationTimeRemaining * 20 + 40, 255, false, false, false));
                         player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, preparationTimeRemaining * 20 + 40, 128, false, false, false));
-                    } else if (currentPhase == GamePhase.RUNNING && hunterWeapon != null && !player.getInventory().containsAtLeast(hunterWeapon, 1)) {
-                        player.getInventory().addItem(hunterWeapon.clone());
+                    } else if (currentPhase == GamePhase.RUNNING && hunterWeapon != null && !player.getInventory().containsAtLeast(hunterWeapon.clone(), 1)) {
+                        ItemStack currentHunterWeapon = hunterWeapon.clone();
+                        ItemMeta meta = currentHunterWeapon.getItemMeta();
+                        if (meta != null) {
+                            meta.setUnbreakable(true);
+                            meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+                            currentHunterWeapon.setItemMeta(meta);
+                        }
+                        player.getInventory().addItem(currentHunterWeapon);
                     }
                 } else if (isRunner(player.getUniqueId())) {
                     Location runnerSpawn = parseLocationFromString(getPluginConfig().getString("spawn_points.runners"), "spawn_points.runners");
@@ -1211,7 +1228,16 @@ public class HunterPlugin extends JavaPlugin implements Listener {
 
         if (isRunner(victim.getUniqueId()) && isHunter(attacker.getUniqueId())) {
             ItemStack itemInHand = attacker.getInventory().getItemInMainHand();
-            if (hunterWeapon != null && hunterWeapon.isSimilar(itemInHand)) {
+
+            ItemStack freshHunterWeapon = hunterWeapon.clone();
+            ItemMeta freshMeta = freshHunterWeapon.getItemMeta();
+            if (freshMeta != null) {
+                freshMeta.setUnbreakable(true);
+                freshMeta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+                freshHunterWeapon.setItemMeta(freshMeta);
+            }
+
+            if (freshHunterWeapon != null && itemInHand != null && itemInHand.isSimilar(freshHunterWeapon)) {
                 handleRunnerCaught(victim, attacker, "被抓捕");
             }
         }
@@ -1223,7 +1249,14 @@ public class HunterPlugin extends JavaPlugin implements Listener {
         ItemStack droppedItem = event.getItemDrop().getItemStack();
 
         if (currentPhase == GamePhase.RUNNING && isHunter(player.getUniqueId())) {
-            if (hunterWeapon != null && hunterWeapon.isSimilar(droppedItem)) {
+            ItemStack currentHunterWeapon = hunterWeapon.clone();
+            ItemMeta meta = currentHunterWeapon.getItemMeta();
+            if (meta != null) {
+                meta.setUnbreakable(true);
+                meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+                currentHunterWeapon.setItemMeta(meta);
+            }
+            if (currentHunterWeapon != null && currentHunterWeapon.isSimilar(droppedItem)) {
                 event.setCancelled(true);
                 player.sendMessage(cannotDropWeaponMessage);
             }
